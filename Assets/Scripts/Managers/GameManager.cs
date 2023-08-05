@@ -9,6 +9,12 @@ public class GameManager : MonoBehaviour
     public float m_EndDelay = 3f; //Delay entre las fases de RoundPlaying y RoundEnding
     public CameraControl m_CameraControl; //Referencia al sccript de CameraControl
     public Text m_MessageText; //Referencia al texto para mostrar mensajes
+    public Text m_TimerText;
+    private float timeLimitSeconds = 60.0f;
+    private float countDown;
+    private bool startCountdown = false;
+    private bool endGame = false;
+    public int maxVictories = 5;
 
     public GameObject m_TankPrefab; //Referencia al Prefab del Tanque
     public TankManager[] m_Tanks; //Array de TankManagers para controlar cada tanque
@@ -18,7 +24,7 @@ public class GameManager : MonoBehaviour
     private TankManager m_RoundWinner; //Referencia al ganador de la ronda para anunciar quién ha ganado
     private TankManager m_GameWinner; //Referencia al ganador del juego para anunciar quién ha ganado
 
- private void Start()
+    private void Start()
     {
         //Creamos los delays para que solo se apliquen una vez
         m_StartWait = new WaitForSeconds(m_StartDelay);
@@ -26,7 +32,41 @@ public class GameManager : MonoBehaviour
         SpawnAllTanks(); //Generar tanques
         SetCameraTargets(); //Ajustar cámara
         StartCoroutine(GameLoop()); //Iniciar juego
+        countDown = timeLimitSeconds;
+
     }
+
+    private void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            Application.Quit();
+        }
+        if (startCountdown && countDown > 0)
+        {
+            countDown -= Time.deltaTime;
+            m_TimerText.text = Mathf.Round(countDown).ToString();
+        }
+        if (countDown <= 0)
+        {
+            endGame = true;
+            startCountdown = false;
+            m_MessageText.text = "SE ACABO EL TIEMPO\n\n" + "TODOS LOS JUGADORES\n" + "PERDIERON";
+            EndingAndClosingGame();
+        }
+
+        
+    }
+
+    private IEnumerator EndingAndClosingGame()
+    {
+        
+        yield return new WaitForSeconds(5f);
+
+        Debug.Log("Closing Game");
+        Application.Quit();
+    }
+
     private void SpawnAllTanks()
     {
         //Recorro los tanques...
@@ -54,6 +94,7 @@ public class GameManager : MonoBehaviour
     //llamado al principio y en cada fase del juego después de otra
     private IEnumerator GameLoop()
     {
+        
         //Empiezo con la corutina RoundStarting y no retorno hasta que finalice
          yield return StartCoroutine(RoundStarting());
         //Cuando finalice RoundStarting, empiezo con RoundPlaying y no retornohasta que finalice
@@ -61,7 +102,11 @@ public class GameManager : MonoBehaviour
         //Cuando finalice RoundPlaying, empiezo con RoundEnding y no retorno hasta que finalice
          yield return StartCoroutine(RoundEnding());
         //Si aún no ha ganado ninguno
-        if (m_GameWinner != null)
+        if (endGame)
+        {
+            EndingAndClosingGame();
+        }
+        else if (m_GameWinner != null)
         {
             //Si hay un ganador, reinicio el nivel
             SceneManager.LoadScene(0);
@@ -88,6 +133,7 @@ public class GameManager : MonoBehaviour
     }
     private IEnumerator RoundPlaying()
     {
+        startCountdown = true;
         // Cuando empiece la ronda dejo que los tanques se muevan.
         EnableTankControl();
         // Borro el texto de la pantalla.
@@ -173,6 +219,15 @@ public class GameManager : MonoBehaviour
         for (int i = 0; i < m_Tanks.Length; i++)
         {
             message += m_Tanks[i].m_ColoredPlayerText + ": " + m_Tanks[i].m_Wins + " GANA\n";
+            if (m_Tanks[i].m_Wins >= maxVictories)
+            {
+                message = m_RoundWinner.m_ColoredPlayerText + " GANA EL JUEGO\n";
+                message += "CON "+ m_Tanks[i].m_Wins + " VICTORIAS\n";
+                message += "EN " + Mathf.Round(timeLimitSeconds-countDown).ToString() + " SEGUNDOS !";
+                endGame = true;
+                startCountdown = false;
+                return message;
+            }
         }
         // Si hay un ganador del juego, cambio el mensaje entero para reflejarlo.
     if (m_GameWinner != null)
